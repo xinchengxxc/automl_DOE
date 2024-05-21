@@ -1,0 +1,40 @@
+services:
+  automldoe:
+    # user: "${UID}:${GID}" # default user within container
+    image: local/aghm_e01233_automldoe:latest
+    container_name: automldoe
+    # command: /repropy/envs/repropy/bin/jupyter notebook --allow-root --port=8888 --ip 0.0.0.0 --no-browser --NotebookApp.token='THISTOKENISNOTSECURE' --NotebookApp.password=''
+    # command: /bin/sh -c "while sleep 1000; do :; done" # keep container open while running
+    command: bash
+    stdin_open: true
+    tty: true
+    # ports: # Host:Container
+      # - "8888:8888" # Jupyter Notebook
+      # - "8889:8889" # Jupyter Notebook
+    volumes:
+      - type: bind
+        source: ./notebooks
+        target: /notebooks
+      - type: bind
+        source: ./
+        target: /workspaces/automl_DOE # vscode workspace folder
+
+      # store vscode extensions to avoid to reinstall every time the container is created anew
+      - type: bind
+        source: ./vscode-container-ext/.vscode-server
+        target: /home/vscode/.vscode-server
+        
+    # not yet supported on M1/M2:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #           - capabilities: [gpu]
+    # linux systems:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]

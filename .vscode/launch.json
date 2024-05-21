@@ -1,0 +1,26 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "automl_DOE: Run Test",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "python/run - xxc.py",
+            "args": [],
+            "env": {"SLURM_ARRAY_TASK_ID": "8"},
+            "console": "integratedTerminal",
+            "justMyCode": true
+        }
+    ]
+}
