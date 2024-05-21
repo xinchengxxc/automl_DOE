@@ -2,6 +2,7 @@ from io import StringIO
 from pathlib import Path
 import os
 import pandas as pd
+import re
 import shutil
 import subprocess
 import yaml
@@ -19,6 +20,13 @@ STATE_INFO="✋"
 # runner
 
 def run(cmd, stdout=True):
+    """
+    Run a command locally.
+
+    Args:
+    - cmd: Command as a [] list with all separated args
+    - stdout: Print stdout by default (True)
+    """
     result = subprocess.run(cmd, capture_output=True, text=True, cwd="../")
     if (result.returncode != 0):
         raise subprocess.CalledProcessError(result.returncode, cmd, output=result.stdout, stderr=result.stderr)
@@ -28,6 +36,15 @@ def run(cmd, stdout=True):
     return result
 
 def run_remote(cmd, host, ssh, stdout=True):
+    """
+    Run a command remotely.
+
+    Args:
+    - cmd: Command as a [] list with all separated args
+    - host: IP or hostname
+    - ssh: SSH creds dict
+    - stdout: Print stdout by default (True)
+    """
     new_cmd = ["ssh", f"{ssh['user']}@{host}", "-p", f"{ssh['port']}", "-i", f"{ssh['ssh_path']}/{ssh['ssh_key_name']}"] + cmd
     result = subprocess.run(new_cmd, capture_output=True, text=True)
     if (result.returncode != 0):
@@ -36,6 +53,94 @@ def run_remote(cmd, host, ssh, stdout=True):
         print(result.stdout) if stdout == True else None
         
     return result
+
+def get_ssh_server_pubkey(host, ssh, stdout=True):
+    """
+    Get a SSH public key from a server.
+
+    Args:
+    - host: IP or Hostname
+    - ssh: SSH creds dict
+    - stdout: Print stdout by default (True)
+    """
+    cmd = ["ssh-keyscan", "-p", f"{ssh['port']}", "-t", "ecdsa", host]
+    
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if (result.returncode != 0):
+        raise subprocess.CalledProcessError(result.returncode, cmd, output=result.stdout, stderr=result.stderr)
+    else:
+        print(result.stdout) if stdout == True else None
+        
+    return result.stdout
+
+def is_ip_address(hostname):
+    """
+    Check if the given hostname is an IP address.
+    
+    Args:
+    - hostname: The hostname or IP address to check.
+    
+    Returns:
+    - True if the hostname is an IP address, False otherwise.
+    """
+    return hostname.startswith("[") and ":" in hostname
+
+def extract_ip_or_hostname(hostname):
+    """
+    Extract the IP address or hostname without brackets and port number.
+    
+    Args:
+    - hostname: The hostname or IP address to extract from.
+    
+    Returns:
+    - The extracted IP address or hostname.
+    """
+    # Get the first part of the server pubkey line
+    hostname = hostname.split(' ')[0]
+
+    # Remove brackets and port number from the hostname if it's in the format [192.168.2.1]:22
+    if hostname.startswith("["):
+        return hostname.split(':')[0][1:-1]  # Remove port number if exists
+    else:
+        return hostname.split(':')[0]  # Remove port number if exists
+
+def add_host_key_to_known_hosts(pubkey, ssh):
+    """
+    Add the host verification key to the known_hosts file if it doesn't already exist.
+    
+    Args:
+    - public_key_line: A line containing the server public key (e.g., obtained from ssh-keyscan).
+    - ssh: SSH creds dict
+    """
+    try:
+        # Extract hostname from the public key line
+        parts = pubkey.split()
+        hostname = parts[0]
+
+        # Extract IP address or hostname without brackets and port number
+        hostname = extract_ip_or_hostname(hostname)
+
+        print(f"{STATE_WORK} Check server public key {hostname}")
+
+        # Run ssh-keygen to check if the host key already exists in known_hosts
+        check_key_command = ["ssh-keygen", "-F", hostname]
+        key_check_output = subprocess.check_output(check_key_command, stderr=subprocess.DEVNULL)
+
+        # If the key doesn't exist, add it
+        if not key_check_output.strip():
+            # Decode output to string
+            ssh_keyscan_output = ssh_keyscan_output.decode(pubkey)
+
+            # Add the public key to the known_hosts file
+            with open(f"{ssh['ssh_path']}/known_hosts", "a") as known_hosts_file:
+                known_hosts_file.write(ssh_keyscan_output)
+            
+            print(f"{STATE_DONE} Host key added to known_hosts successfully.")
+        else:
+            print(f"{STATE_DONE} Host key already exists.")
+    except subprocess.CalledProcessError as e:
+        print(f"{STATE_FAIL} Error: Failed to add host key to known_hosts.")
+        print(e)
 
 ###############################################################################
 # printer
@@ -276,9 +381,9 @@ class YAML_hpc_sbatch_configurator(YAML_configurator):
         time['activate']         = input(f"Use time limit (default: {time.get('activate')}): ") or time.get('activate')
         time['limit']            = input(f"Time limit in HH:MM:ss (default: {time.get('limit')}): ") or time.get('limit')
 
-        time        = {'activate': time_limit_activate, 'limit': time_limit}
-        array       = {'start': array_start, 'end': array_end, 'limit': array_limit}  
-        data['job'] = {'name': job_name, 'stdout': job_stdout, 'stderr': job_stderr, 'memory': job_memory, 'threads_pe_core': job_threads_per_core, 'array': array, 'time': time}
+        # time        = {'activate': time_limit_activate, 'limit': time_limit}
+        # array       = {'start': array_start, 'end': array_end, 'limit': array_limit}  
+        # data['job'] = {'name': job_name, 'stdout': job_stdout, 'stderr': job_stderr, 'memory': job_memory, 'threads_pe_core': job_threads_per_core, 'array': array, 'time': time}
 
         return data
 
@@ -311,3 +416,4 @@ def gen_ssh_key(ssh_creds):
     run(["ssh-keygen", "-t", "ecdsa", "-b", "521", "-N", "", "-C", f"{ssh_user_name}", "-f", ssh_file_path])
 
     print_ssh_public_key(ssh_file_path)
+
