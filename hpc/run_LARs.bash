@@ -42,16 +42,16 @@ HPC_JOB_NAME="${DOCKER_IMAGE_NAME}"    # LAB_USER_EXPERIMENT
 HPC_JOB_LOG="${DOCKER_IMAGE_NAME}.out" # job stdout
 HPC_JOB_ERR="${DOCKER_IMAGE_NAME}.err" # job stderr
 HPC_PARTITION="LARs-p0"                #
-HPC_NODES="1"
 
 ### HPC resources setup
 
-HPC_MEM_PER_NODE="6G"               # max memory usage [G,M] on a node (512GiB arc-p1, 1TiB arc-p2)
+HPC_MEM_PER_TASK="6G"               # max memory usage [G,M] on a node (512TiB arc-p1, 1TiB arc-p2)
 HPC_CORES_PER_TASK="1"              # number of cores for a single task
 HPC_THREADS_PER_CORE="1"            # 1 = disable Hyperthreading, 2 = enable Hyperthreading
 HPC_ARRAY="0-285"                   # index of taskIDs to spawn tasks (has slurm configured hard limit!)
-HPC_TASK_LIMIT="16"                 # hard task limit (arc-p0: 290, arc-p1: 30, arc-p2: 130, arc-p3: 130)
-# HPC_TASKS_PER_NODE="2"              
+HPC_TASK_LIMIT="42"                 # hard task limit (arc-p0: 42C/84T)
+HPC_NODES="1"                       # how many nodes a task can use
+# HPC_TIME_LIMIT="01:00:00"           # max time limit
 
 ###############################################################################
 
@@ -59,13 +59,14 @@ HPC_TASK_LIMIT="16"                 # hard task limit (arc-p0: 290, arc-p1: 30, 
 echo ".:⋮:. create sbatch..."
 cat > ${EXPERIMENT_LAB}_${EXPERIMENT_USER}_${EXPERIMENT_NAME}.sbatch <<EOL
 #!/bin/bash
+#SBATCH --account=${EXPERIMENT_USER}
 #SBATCH --job-name=${HPC_JOB_NAME}
+#SBATCH --output=npc_${HPC_JOB_LOG}
+#SBATCH --error=npc_${HPC_JOB_ERR}
 #SBATCH --partition=${HPC_PARTITION}
-#SBATCH --output=${HPC_JOB_LOG}
-#SBATCH --error=${HPC_JOB_ERR}
-#SBATCH --mem=${HPC_MEM_PER_NODE}
+#SBATCH --mem=${HPC_MEM_PER_TASK}
+#SBATCH --array=${HPC_ARRAY}%${HPC_TASK_LIMIT}
 #SBATCH --nodes=${HPC_NODES}
-#SBATCH --array=${HPC_ARRAY}
 
 # restrict to 1 task only to pull container image
 FILE_PATH="READY"
